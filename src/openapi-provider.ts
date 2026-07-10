@@ -31,9 +31,7 @@ export class OpenApiProvider {
   }
 
   async listEndpoints(): Promise<EndpointSummary[]> {
-    if (!this.endpoints) {
-      this.endpoints = listEndpoints(await this.loader.load());
-    }
+    this.endpoints ??= listEndpoints(await this.loader.load());
 
     return this.endpoints;
   }
@@ -43,7 +41,7 @@ export class OpenApiProvider {
   }
 
   async getEndpoint(method: string, path: string, dereference = false) {
-    const document = dereference ? await this.loader.loadDereferenced() : await this.loader.load();
+    const document = dereference ? await this.loadDereferencedOrParsed() : await this.loader.load();
     const operation = getOperation(document, method, path);
 
     if (!operation) {
@@ -81,7 +79,7 @@ export class OpenApiProvider {
   }
 
   async explainEndpoint(method: string, path: string) {
-    const endpoint = await this.getEndpoint(method, path, true);
+    const endpoint = await this.getEndpoint(method, path);
 
     return {
       endpoint: `${endpoint.method} ${endpoint.path}`,
@@ -97,12 +95,12 @@ export class OpenApiProvider {
   }
 
   async generateExample(method: string, path: string) {
-    const endpoint = await this.getEndpoint(method, path, true);
+    const endpoint = await this.getEndpoint(method, path);
     return generateExampleFromRequestBody(endpoint.requestBody);
   }
 
   async validateRequest(method: string, path: string, data: unknown) {
-    const endpoint = await this.getEndpoint(method, path, true);
+    const endpoint = await this.getEndpoint(method, path);
     return validateRequestBody(endpoint.requestBody, data);
   }
 
@@ -131,5 +129,13 @@ export class OpenApiProvider {
   async getServersResource() {
     const document = await this.loader.load();
     return document.servers ?? [];
+  }
+
+  private async loadDereferencedOrParsed() {
+    try {
+      return await this.loader.loadDereferenced();
+    } catch {
+      return this.loader.load();
+    }
   }
 }

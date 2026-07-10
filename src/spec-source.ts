@@ -4,12 +4,12 @@ export function getDefaultSpecSource() {
   return specFromOption ?? process.env.OPENAPI_SPEC;
 }
 
-export function requireSpecSource(filePath?: string) {
-  const specSource = filePath ?? getDefaultSpecSource();
+export function requireSpecSource() {
+  const specSource = getDefaultSpecSource();
 
   if (!specSource) {
     throw new Error(
-      "Missing OpenAPI spec source. Pass filePath to the tool, start the server with --spec <path-or-url>, or set OPENAPI_SPEC.",
+      "Missing OpenAPI spec source. Start the server with --spec <path-or-url> or set OPENAPI_SPEC.",
     );
   }
 

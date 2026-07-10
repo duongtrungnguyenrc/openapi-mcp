@@ -3,38 +3,33 @@ import { z } from "zod";
 import { OpenApiProvider } from "./openapi-provider.js";
 import { requireSpecSource } from "./spec-source.js";
 
-const filePathInput = {
-  filePath: z
-    .string()
-    .optional()
-    .describe(
-      "Path or URL to an OpenAPI JSON/YAML file. Optional when server is started with --spec or OPENAPI_SPEC.",
-    ),
-};
+const emptyInput = {};
 
 export function registerOpenApiTools(
   server: McpServer,
   getProvider: (filePath: string) => OpenApiProvider,
 ) {
+  const provider = () => getProvider(requireSpecSource());
+
   server.registerTool(
     "summarize_openapi",
     {
       title: "Summarize OpenAPI document",
-      description: "Load an OpenAPI JSON/YAML file and return high-level metadata plus counts.",
-      inputSchema: filePathInput,
+      description:
+        "Load the configured OpenAPI JSON/YAML source and return high-level metadata plus counts.",
+      inputSchema: emptyInput,
     },
-    async ({ filePath }) => jsonContent(await getProvider(requireSpecSource(filePath)).summarize()),
+    async () => jsonContent(await provider().summarize()),
   );
 
   server.registerTool(
     "list_endpoints",
     {
       title: "List OpenAPI endpoints",
-      description: "List all HTTP endpoints from an OpenAPI JSON/YAML file.",
-      inputSchema: filePathInput,
+      description: "List all HTTP endpoints from the configured OpenAPI JSON/YAML source.",
+      inputSchema: emptyInput,
     },
-    async ({ filePath }) =>
-      jsonContent(await getProvider(requireSpecSource(filePath)).listEndpoints()),
+    async () => textContent(formatEndpointList(await provider().listEndpoints())),
   );
 
   server.registerTool(
@@ -42,10 +37,9 @@ export function registerOpenApiTools(
     {
       title: "List OpenAPI operations",
       description: "Alias for list_endpoints for compatibility.",
-      inputSchema: filePathInput,
+      inputSchema: emptyInput,
     },
-    async ({ filePath }) =>
-      jsonContent(await getProvider(requireSpecSource(filePath)).listEndpoints()),
+    async () => textContent(formatEndpointList(await provider().listEndpoints())),
   );
 
   server.registerTool(
@@ -54,12 +48,10 @@ export function registerOpenApiTools(
       title: "Find endpoint",
       description: "Search endpoints by method, path, operationId, summary, description, or tags.",
       inputSchema: {
-        ...filePathInput,
         query: z.string().describe("Search text, for example: create shipment."),
       },
     },
-    async ({ filePath, query }) =>
-      jsonContent(await getProvider(requireSpecSource(filePath)).findEndpoint(query)),
+    async ({ query }) => jsonContent(await provider().findEndpoint(query)),
   );
 
   server.registerTool(
@@ -68,7 +60,6 @@ export function registerOpenApiTools(
       title: "Get endpoint",
       description: "Return focused request/response/security context for one endpoint.",
       inputSchema: {
-        ...filePathInput,
         method: z.string().describe("HTTP method, for example POST."),
         path: z.string().describe("OpenAPI path, for example /shipments."),
         dereference: z
@@ -77,14 +68,8 @@ export function registerOpenApiTools(
           .describe("Resolve $ref values before returning the endpoint."),
       },
     },
-    async ({ filePath, method, path, dereference }) =>
-      jsonContent(
-        await getProvider(requireSpecSource(filePath)).getEndpoint(
-          method,
-          path,
-          dereference ?? false,
-        ),
-      ),
+    async ({ method, path, dereference }) =>
+      jsonContent(await provider().getEndpoint(method, path, dereference ?? false)),
   );
 
   server.registerTool(
@@ -93,12 +78,10 @@ export function registerOpenApiTools(
       title: "Get schema",
       description: "Return a component schema by name.",
       inputSchema: {
-        ...filePathInput,
         name: z.string().describe("Schema name in components.schemas."),
       },
     },
-    async ({ filePath, name }) =>
-      jsonContent(await getProvider(requireSpecSource(filePath)).getSchema(name)),
+    async ({ name }) => jsonContent(await provider().getSchema(name)),
   );
 
   server.registerTool(
@@ -107,12 +90,10 @@ export function registerOpenApiTools(
       title: "Resolve schema",
       description: "Return a component schema with $ref values resolved.",
       inputSchema: {
-        ...filePathInput,
         name: z.string().describe("Schema name in components.schemas."),
       },
     },
-    async ({ filePath, name }) =>
-      jsonContent(await getProvider(requireSpecSource(filePath)).getSchema(name, true)),
+    async ({ name }) => jsonContent(await provider().getSchema(name, true)),
   );
 
   server.registerTool(
@@ -121,12 +102,10 @@ export function registerOpenApiTools(
       title: "Search schema",
       description: "Search component schemas by name and schema content.",
       inputSchema: {
-        ...filePathInput,
         query: z.string().describe("Search text, for example: vehicle."),
       },
     },
-    async ({ filePath, query }) =>
-      jsonContent(await getProvider(requireSpecSource(filePath)).searchSchema(query)),
+    async ({ query }) => jsonContent(await provider().searchSchema(query)),
   );
 
   server.registerTool(
@@ -135,13 +114,11 @@ export function registerOpenApiTools(
       title: "Explain endpoint",
       description: "Generate auth/request/response/errors/example documentation for one endpoint.",
       inputSchema: {
-        ...filePathInput,
         method: z.string().describe("HTTP method."),
         path: z.string().describe("OpenAPI path."),
       },
     },
-    async ({ filePath, method, path }) =>
-      jsonContent(await getProvider(requireSpecSource(filePath)).explainEndpoint(method, path)),
+    async ({ method, path }) => jsonContent(await provider().explainEndpoint(method, path)),
   );
 
   server.registerTool(
@@ -150,13 +127,11 @@ export function registerOpenApiTools(
       title: "Generate example",
       description: "Generate an example JSON request body for one endpoint.",
       inputSchema: {
-        ...filePathInput,
         method: z.string().describe("HTTP method."),
         path: z.string().describe("OpenAPI path."),
       },
     },
-    async ({ filePath, method, path }) =>
-      jsonContent(await getProvider(requireSpecSource(filePath)).generateExample(method, path)),
+    async ({ method, path }) => jsonContent(await provider().generateExample(method, path)),
   );
 
   server.registerTool(
@@ -165,16 +140,13 @@ export function registerOpenApiTools(
       title: "Validate request",
       description: "Validate a JSON request body against an endpoint request schema.",
       inputSchema: {
-        ...filePathInput,
         method: z.string().describe("HTTP method."),
         path: z.string().describe("OpenAPI path."),
         data: z.unknown().describe("JSON request body to validate."),
       },
     },
-    async ({ filePath, method, path, data }) =>
-      jsonContent(
-        await getProvider(requireSpecSource(filePath)).validateRequest(method, path, data),
-      ),
+    async ({ method, path, data }) =>
+      jsonContent(await provider().validateRequest(method, path, data)),
   );
 
   server.registerTool(
@@ -182,19 +154,44 @@ export function registerOpenApiTools(
     {
       title: "Get auth",
       description: "Return global security requirements and security schemes.",
-      inputSchema: filePathInput,
+      inputSchema: emptyInput,
     },
-    async ({ filePath }) => jsonContent(await getProvider(requireSpecSource(filePath)).getAuth()),
+    async () => jsonContent(await provider().getAuth()),
   );
 }
 
 function jsonContent(value: unknown) {
+  return textContent(JSON.stringify(value, null, 2));
+}
+
+function textContent(text: string) {
   return {
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify(value, null, 2),
+        text,
       },
     ],
   };
+}
+
+function formatEndpointList(endpoints: Awaited<ReturnType<OpenApiProvider["listEndpoints"]>>) {
+  const groups = new Map<string, string[]>();
+
+  for (const endpoint of endpoints) {
+    const tag =
+      Array.isArray(endpoint.tags) && typeof endpoint.tags[0] === "string"
+        ? endpoint.tags[0]
+        : "Untagged";
+    const summary =
+      typeof endpoint.summary === "string" && endpoint.summary ? ` — ${endpoint.summary}` : "";
+    const operationId =
+      typeof endpoint.operationId === "string" ? ` (${endpoint.operationId})` : "";
+    const line = `${endpoint.method.padEnd(6)} ${endpoint.path}${operationId}${summary}`;
+    groups.set(tag, [...(groups.get(tag) ?? []), line]);
+  }
+
+  return Array.from(groups.entries())
+    .map(([tag, lines]) => [`# ${tag}`, ...lines].join("\n"))
+    .join("\n\n");
 }

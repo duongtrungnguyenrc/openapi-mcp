@@ -16,9 +16,32 @@ export function listEndpoints(document: OpenApiDocument): EndpointSummary[] {
 }
 
 export function getOperation(document: OpenApiDocument, method: string, path: string) {
-  const pathItem = document.paths?.[path];
-  const operation = pathItem?.[method.toLowerCase()];
+  const normalizedMethod = method.toLowerCase();
+  const matchedPath = findMatchingPath(Object.keys(document.paths ?? {}), path);
+  const operation = matchedPath ? document.paths?.[matchedPath]?.[normalizedMethod] : undefined;
+
   return isRecord(operation) ? operation : undefined;
+}
+
+function findMatchingPath(paths: string[], inputPath: string) {
+  const normalizedInput = normalizePathSegments(inputPath);
+
+  return (
+    paths.find((path) => normalizePathSegments(path) === normalizedInput) ??
+    paths.find((path) => pathMatchesSuffix(normalizePathSegments(path), normalizedInput))
+  );
+}
+
+function pathMatchesSuffix(specPath: string, inputPath: string) {
+  return specPath.endsWith(`/${inputPath}`) || inputPath.endsWith(`/${specPath}`);
+}
+
+function normalizePathSegments(path: string) {
+  return path
+    .trim()
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\/+/g, "/")
+    .toLowerCase();
 }
 
 export function findEndpoints(endpoints: EndpointSummary[], query: string): EndpointSummary[] {

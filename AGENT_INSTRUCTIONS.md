@@ -173,8 +173,6 @@ Prefer tools over resources when the task is endpoint- or schema-specific.
 
 ## Best practices
 
-- Do not pass `filePath` repeatedly when `--spec` is configured.
-- Use `filePath` only to override the configured spec for one call.
 - Start with `find_endpoint` for goal-based tasks.
 - Start with `get_endpoint` when method and path are already known.
 - Use `dereference: true` only when concrete schemas are needed.

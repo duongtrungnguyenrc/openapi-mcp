@@ -13,5 +13,16 @@ const server = new McpServer({
 registerOpenApiTools(server, getProvider);
 registerOpenApiResources(server, getProvider);
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main()
+  .then(() => {
+    console.error("OpenAPI MCP server started successfully!!");
+  })
+  .catch((error) => {
+    console.error("Fatal error in main():", error);
+    process.exit(1);
+  });

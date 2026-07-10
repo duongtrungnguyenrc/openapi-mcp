@@ -53,14 +53,14 @@ Add this server to your MCP client config:
 {
   "mcpServers": {
     "openapi-docs": {
-      "command": "npx",
-      "args": ["-y", "openapi-mcp", "--spec", "https://example.com/openapi.yaml"]
+      "command": "openapi-mcp",
+      "args": ["--spec", "https://example.com/openapi.yaml"]
     }
   }
 }
 ```
 
-Replace `/absolute/path/to/openapi-mcp` with this project path.
+Use `npm link` after building when running this project locally.
 
 Example for this workspace:
 
@@ -68,8 +68,8 @@ Example for this workspace:
 {
   "mcpServers": {
     "openapi-docs": {
-      "command": "npx",
-      "args": ["-y", "openapi-mcp", "--spec", "/home/nguyenduong/Documents/openapi.yaml"]
+      "command": "openapi-mcp",
+      "args": ["--spec", "/home/nguyenduong/Documents/openapi.yaml"]
     }
   }
 }
@@ -77,15 +77,14 @@ Example for this workspace:
 
 Restart your MCP client after updating the config.
 
-When configured with `--spec`, tools use that OpenAPI document by default. You do not need to pass `filePath` on every tool call.
+When configured with `--spec`, tools use that OpenAPI document for every call.
 
 Spec source resolution order:
 
-1. `filePath` in the tool call, if provided.
-2. `--spec <path-or-url>` in MCP server args.
-3. `OPENAPI_SPEC` environment variable.
+1. `--spec <path-or-url>` in MCP server args.
+2. `OPENAPI_SPEC` environment variable.
 
-Use `filePath` only when overriding the configured document for a specific call.
+Tool calls do not accept a spec path override. Start a separate MCP server instance for a different OpenAPI document.
 
 ### Typical workflow
 

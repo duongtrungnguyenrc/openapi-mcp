@@ -12,8 +12,8 @@ const serverName = "openapi-docs";
 
 function getServerEntry(spec?: string) {
   return {
-    command: "npx",
-    args: ["-y", "openapi-mcp", ...(spec ? ["--spec", spec] : [])],
+    command: "openapi-mcp",
+    args: [...(spec ? ["--spec", spec] : [])],
   };
 }
 
@@ -30,7 +30,7 @@ Commands:
 
 Options:
   --config      Path to the agent MCP config JSON file.
-  --spec        Optional OpenAPI JSON/YAML path or URL used as the default spec.
+  --spec        OpenAPI JSON/YAML path or URL used as the configured spec source.
 `);
 }
 

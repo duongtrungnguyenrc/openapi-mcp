@@ -1,0 +1,52 @@
+{
+  "name": "openapi-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for serving focused OpenAPI documentation context to agents.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "openapi-mcp": "./dist/index.js",
+    "openapi-mcp-cli": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/postbuild.js",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "quality": "npm run typecheck && npm run lint && npm run format:check",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@apidevtools/swagger-parser": "^12.1.0",
+    "@modelcontextprotocol/sdk": "latest",
+    "ajv": "^8.20.0",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "latest",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
+    "prettier": "^3.9.5",
+    "tsx": "latest",
+    "typescript": "latest",
+    "typescript-eslint": "^8.63.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,js,json,md}": [
+      "prettier --write"
+    ],
+    "*.{ts,js}": [
+      "eslint --fix"
+    ]
+  }
+}

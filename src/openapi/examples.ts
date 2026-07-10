@@ -35,7 +35,7 @@ function extractRequestSchema(
   return mediaType.schema;
 }
 
-function generateExampleFromSchema(schema: unknown): unknown {
+export function generateExampleFromSchema(schema: unknown): unknown {
   if (!isRecord(schema)) {
     return undefined;
   }

@@ -4,12 +4,6 @@ import type { OpenApiDocument } from "./types.js";
 
 type ParserSource = string | OpenAPI.Document;
 
-const parserOptions = {
-  dereference: {
-    circular: "ignore" as const,
-  },
-};
-
 export class OpenApiLoader {
   private readonly sourcePath: string;
   private readonly isRemoteSource: boolean;
@@ -33,8 +27,23 @@ export class OpenApiLoader {
   async loadDereferenced(): Promise<OpenApiDocument> {
     if (!this.dereferencedDocument) {
       const parser = new SwaggerParser();
-      const api = await parser.dereference(await this.getParserSource(), parserOptions);
-      this.dereferencedDocument = api as OpenApiDocument;
+      try {
+        const api = await parser.dereference(await this.getParserSource(), {
+          dereference: {
+            circular: "ignore" as const,
+          },
+          continueOnError: true,
+        });
+        this.dereferencedDocument = api as OpenApiDocument;
+      } catch (err) {
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+        const schema = (parser as any).schema;
+        if (schema) {
+          this.dereferencedDocument = schema as OpenApiDocument;
+        } else {
+          throw err;
+        }
+      }
     }
 
     return this.dereferencedDocument;

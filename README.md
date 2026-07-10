@@ -101,24 +101,11 @@ For a user request like "create a shipment":
 }
 ```
 
-2. Read exact request/response details.
+2. Read exact request/response details (includes auto-generated example and fully resolved schema).
 
 ```json
 {
   "tool": "get_endpoint",
-  "arguments": {
-    "method": "POST",
-    "path": "/shipments",
-    "dereference": true
-  }
-}
-```
-
-3. Generate a request body example.
-
-```json
-{
-  "tool": "generate_example",
   "arguments": {
     "method": "POST",
     "path": "/shipments"
@@ -126,7 +113,7 @@ For a user request like "create a shipment":
 }
 ```
 
-4. Validate the JSON body before using it.
+3. Validate the JSON body before using it.
 
 ```json
 {
@@ -143,20 +130,16 @@ For a user request like "create a shipment":
 
 ## Tools
 
-| Tool                | Purpose                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------- |
-| `summarize_openapi` | Return API metadata, server list, path count, operation count, and schema count.         |
-| `list_endpoints`    | List all HTTP endpoints.                                                                 |
-| `list_operations`   | Compatibility alias for `list_endpoints`.                                                |
-| `find_endpoint`     | Search endpoints by path, method, operationId, summary, description, and tags.           |
-| `get_endpoint`      | Return focused details for one endpoint: params, request body, responses, auth, servers. |
-| `get_schema`        | Return a component schema by name.                                                       |
-| `resolve_schema`    | Return a component schema with `$ref` values resolved.                                   |
-| `search_schema`     | Search schemas by name and content.                                                      |
-| `explain_endpoint`  | Return auth, request, response, errors, and example for one endpoint.                    |
-| `generate_example`  | Generate a JSON request example from the endpoint request schema.                        |
-| `validate_request`  | Validate JSON data against the endpoint request schema.                                  |
-| `get_auth`          | Return global security requirements and security schemes.                                |
+| Tool                | Purpose                                                                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `summarize_openapi` | Return API metadata, server list, path count, operation count, and schema count.                                                              |
+| `list_endpoints`    | List all HTTP endpoints.                                                                                                                      |
+| `find_endpoint`     | Search endpoints by path, method, operationId, summary, description, and tags.                                                                |
+| `get_endpoint`      | Return focused details for one endpoint: params, request body, responses, auth, servers (with all $ref resolved and examples auto-generated). |
+| `get_schema`        | Return a component schema by name (with all $ref resolved).                                                                                   |
+| `search_schema`     | Search schemas by name and content.                                                                                                           |
+| `validate_request`  | Validate JSON data against the endpoint request schema.                                                                                       |
+| `get_auth`          | Return global security requirements and security schemes.                                                                                     |
 
 ## MCP resources
 

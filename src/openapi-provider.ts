@@ -1,10 +1,9 @@
 import type { EndpointSummary } from "./openapi/types.js";
 import { findEndpoints, getOperation, listEndpoints } from "./openapi/endpoints.js";
-import { generateExampleFromRequestBody } from "./openapi/examples.js";
 import { OpenApiLoader } from "./openapi/loader.js";
 import { getSchema as getSchemaByName, searchSchemas } from "./openapi/schemas.js";
-import { extractErrorResponses, summarizeSecurity } from "./openapi/documentation.js";
 import { validateRequestBody } from "./openapi/validation.js";
+import { flattenRequestBody, flattenResponses } from "./openapi/response-formatter.js";
 
 export class OpenApiProvider {
   private readonly loader: OpenApiLoader;
@@ -16,7 +15,7 @@ export class OpenApiProvider {
 
   async summarize() {
     const document = await this.loader.load();
-    const endpoints = await this.listEndpoints();
+    const { endpoints } = await this.listEndpoints();
 
     return {
       title: document.info?.title,
@@ -30,18 +29,20 @@ export class OpenApiProvider {
     };
   }
 
-  async listEndpoints(): Promise<EndpointSummary[]> {
+  async listEndpoints(): Promise<{ endpoints: EndpointSummary[] }> {
     this.endpoints ??= listEndpoints(await this.loader.load());
 
-    return this.endpoints;
+    return {
+      endpoints: this.endpoints,
+    };
   }
 
-  async findEndpoint(query: string): Promise<EndpointSummary[]> {
-    return findEndpoints(await this.listEndpoints(), query);
+  async findEndpoint(query: string): Promise<{ endpoints: EndpointSummary[] }> {
+    return { endpoints: findEndpoints((await this.listEndpoints()).endpoints, query) };
   }
 
-  async getEndpoint(method: string, path: string, dereference = false) {
-    const document = dereference ? await this.loadDereferencedOrParsed() : await this.loader.load();
+  async getEndpoint(method: string, path: string) {
+    const document = await this.loadDereferenced();
     const operation = getOperation(document, method, path);
 
     if (!operation) {
@@ -51,20 +52,20 @@ export class OpenApiProvider {
     return {
       method: method.toUpperCase(),
       path,
-      servers: operation.servers ?? document.servers ?? [],
-      security: operation.security ?? document.security ?? [],
       summary: operation.summary,
       description: operation.description,
-      tags: operation.tags,
       operationId: operation.operationId,
+      tags: operation.tags,
+      servers: operation.servers ?? document.servers ?? [],
+      security: operation.security ?? document.security ?? [],
       parameters: operation.parameters ?? [],
-      requestBody: operation.requestBody,
-      responses: operation.responses ?? {},
+      requestBody: flattenRequestBody(operation.requestBody),
+      responses: flattenResponses(operation.responses),
     };
   }
 
-  async getSchema(name: string, dereference = false) {
-    const document = dereference ? await this.loader.loadDereferenced() : await this.loader.load();
+  async getSchema(name: string) {
+    const document = await this.loadDereferenced();
     const schema = getSchemaByName(document, name);
 
     if (!schema) {
@@ -78,30 +79,19 @@ export class OpenApiProvider {
     return searchSchemas(await this.loader.load(), query);
   }
 
-  async explainEndpoint(method: string, path: string) {
-    const endpoint = await this.getEndpoint(method, path);
+  async validateRequest(
+    method: string,
+    path: string,
+    data: unknown,
+  ): Promise<Record<string, unknown>> {
+    const document = await this.loadDereferenced();
+    const operation = getOperation(document, method, path);
 
-    return {
-      endpoint: `${endpoint.method} ${endpoint.path}`,
-      authentication: summarizeSecurity(endpoint.security),
-      request: {
-        parameters: endpoint.parameters,
-        body: endpoint.requestBody,
-      },
-      response: endpoint.responses,
-      errors: extractErrorResponses(endpoint.responses),
-      example: generateExampleFromRequestBody(endpoint.requestBody),
-    };
-  }
+    if (!operation) {
+      throw new Error(`Endpoint not found: ${method.toUpperCase()} ${path}`);
+    }
 
-  async generateExample(method: string, path: string) {
-    const endpoint = await this.getEndpoint(method, path);
-    return generateExampleFromRequestBody(endpoint.requestBody);
-  }
-
-  async validateRequest(method: string, path: string, data: unknown) {
-    const endpoint = await this.getEndpoint(method, path);
-    return validateRequestBody(endpoint.requestBody, data);
+    return validateRequestBody(operation.requestBody, data) as Record<string, unknown>;
   }
 
   async getAuth() {
@@ -131,7 +121,7 @@ export class OpenApiProvider {
     return document.servers ?? [];
   }
 
-  private async loadDereferencedOrParsed() {
+  private async loadDereferenced() {
     try {
       return await this.loader.loadDereferenced();
     } catch {

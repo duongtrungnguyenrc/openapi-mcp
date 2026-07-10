@@ -41,22 +41,18 @@ Use this MCP whenever a task involves the configured OpenAPI/Swagger specificati
 
 Do not use it for unrelated source-code questions. Use normal code intelligence tools for project code.
 
-## Tool guide
+### Tool guide
 
-| Tool                | Use when                                                               |
-| ------------------- | ---------------------------------------------------------------------- |
-| `summarize_openapi` | You need high-level API metadata, servers, and endpoint/schema counts. |
-| `list_endpoints`    | You need a full endpoint inventory.                                    |
-| `list_operations`   | Compatibility alias for `list_endpoints`.                              |
-| `find_endpoint`     | You have a natural-language goal and need matching endpoints.          |
-| `get_endpoint`      | You know method/path and need exact request/response/security details. |
-| `get_schema`        | You know a component schema name and need its raw definition.          |
-| `resolve_schema`    | You need a schema with `$ref` values resolved.                         |
-| `search_schema`     | You need to find schemas by meaning, name, or content.                 |
-| `explain_endpoint`  | You need auth/request/response/errors/example in one compact answer.   |
-| `generate_example`  | You need a JSON request body example.                                  |
-| `validate_request`  | You need to verify generated JSON against the endpoint request schema. |
-| `get_auth`          | You need global security requirements and schemes.                     |
+| Tool                | Use when                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `summarize_openapi` | You need high-level API metadata, servers, and endpoint/schema counts.                                                      |
+| `list_endpoints`    | You need a full endpoint inventory.                                                                                         |
+| `find_endpoint`     | You have a natural-language goal and need matching endpoints.                                                               |
+| `get_endpoint`      | You know method/path and need exact request/response/security details (with all $ref resolved and examples auto-generated). |
+| `get_schema`        | You know a component schema name and need its definition (with all $ref resolved).                                          |
+| `search_schema`     | You need to find schemas by meaning, name, or content.                                                                      |
+| `validate_request`  | You need to verify generated JSON against the endpoint request schema.                                                      |
+| `get_auth`          | You need global security requirements and schemes.                                                                          |
 
 ## Recommended workflow for API integration
 
@@ -78,26 +74,22 @@ If no good result appears, use `list_endpoints` to inspect the API surface. Do n
 
 Once method and path are known, call `get_endpoint`.
 
-Use `dereference: false` first for compact context. Use `dereference: true` when writing the concrete request body, strongly typed client models, or validation logic.
-
 ```json
 {
   "method": "POST",
-  "path": "/shipments",
-  "dereference": true
+  "path": "/shipments"
 }
 ```
 
-Check these fields before coding:
+Check these fields in the returned detail:
 
 - servers/base URL;
-- path parameters;
-- query parameters;
-- headers;
+- path/query/header parameters;
 - request content type;
-- required request fields;
+- required request fields (fully resolved schema);
+- auto-generated request body example;
 - auth/security requirements;
-- success response status and shape;
+- success response status, resolved schema, and examples;
 - documented error responses.
 
 ### 3. Check authentication before coding
@@ -114,9 +106,9 @@ Map auth schemes carefully:
 
 Never invent header names such as `X-API-Key` unless the spec says so.
 
-### 4. Generate and validate the request body
+### 4. Use request body example and validate
 
-Use `generate_example` to get a schema-based draft body. Then adapt values to the user's domain.
+Use the `example` returned inside `requestBody` in `get_endpoint` to get a schema-based draft body. Then adapt values to the user's domain.
 
 Before finalizing code, call `validate_request` with the exact JSON body your code will send.
 
@@ -155,9 +147,9 @@ If the user changes fields, endpoint, auth, or response handling, call the relev
 - User says what they want to do, but not endpoint -> `find_endpoint`.
 - User gives method and path -> `get_endpoint`.
 - User asks how to authenticate -> `get_auth`, then `get_endpoint` for endpoint overrides.
-- User asks for request JSON -> `generate_example`, then `validate_request`.
-- User asks about a schema/model -> `search_schema`, then `resolve_schema`.
-- User asks for possible errors -> `explain_endpoint` or `get_endpoint` responses.
+- User asks for request JSON -> `get_endpoint` (which contains example), then `validate_request`.
+- User asks about a schema/model -> `search_schema`, then `get_schema`.
+- User asks for possible errors -> `get_endpoint` responses.
 - User asks for all available APIs -> `list_endpoints`.
 - User asks about project source code -> do not use this MCP; use code intelligence tools.
 
@@ -175,8 +167,6 @@ Prefer tools over resources when the task is endpoint- or schema-specific.
 
 - Start with `find_endpoint` for goal-based tasks.
 - Start with `get_endpoint` when method and path are already known.
-- Use `dereference: true` only when concrete schemas are needed.
-- Use `generate_example` before writing sample requests.
 - Use `validate_request` after generating or modifying a request body.
 - Use `get_auth` before writing client authentication code.
 - Prefer documented response statuses over assuming all success is `200`.
@@ -200,10 +190,9 @@ Prefer tools over resources when the task is endpoint- or schema-specific.
 User asks: "Write code to create a shipment."
 
 1. `find_endpoint(query: "create shipment")`
-2. `get_endpoint(method: "POST", path: "/shipments", dereference: true)`
+2. `get_endpoint(method: "POST", path: "/shipments")` (to get resolved details and request/response examples)
 3. `get_auth()` if auth details are not clear from the endpoint.
-4. `generate_example(method: "POST", path: "/shipments")`
-5. Draft request JSON using real inputs from the host project.
-6. `validate_request` with the drafted JSON body.
-7. Write client code using server URL, auth, request body, response, and documented errors.
-8. Finalize with concise notes about endpoint, auth, payload, and handled responses.
+4. Draft request JSON using real inputs from the host project.
+5. `validate_request` with the drafted JSON body.
+6. Write client code using server URL, auth, request body, response, and documented errors.
+7. Finalize with concise notes about endpoint, auth, payload, and handled responses.

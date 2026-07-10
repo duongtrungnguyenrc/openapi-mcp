@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { OpenApiProvider } from "./openapi-provider.js";
 import { requireSpecSource } from "./spec-source.js";
+import { isRecord } from "./openapi/utils.js";
 
 const emptyInput = {};
 
@@ -19,7 +20,10 @@ export function registerOpenApiTools(
         "Load the configured OpenAPI JSON/YAML source and return high-level metadata plus counts.",
       inputSchema: emptyInput,
     },
-    async () => jsonContent(await provider().summarize()),
+    async () => {
+      const data = await provider().summarize();
+      return structuredContent(data, describeSummary(data));
+    },
   );
 
   server.registerTool(
@@ -29,17 +33,10 @@ export function registerOpenApiTools(
       description: "List all HTTP endpoints from the configured OpenAPI JSON/YAML source.",
       inputSchema: emptyInput,
     },
-    async () => textContent(formatEndpointList(await provider().listEndpoints())),
-  );
-
-  server.registerTool(
-    "list_operations",
-    {
-      title: "List OpenAPI operations",
-      description: "Alias for list_endpoints for compatibility.",
-      inputSchema: emptyInput,
+    async () => {
+      const data = await provider().listEndpoints();
+      return structuredContent(data, `${data.endpoints.length} endpoints`);
     },
-    async () => textContent(formatEndpointList(await provider().listEndpoints())),
   );
 
   server.registerTool(
@@ -51,49 +48,45 @@ export function registerOpenApiTools(
         query: z.string().describe("Search text, for example: create shipment."),
       },
     },
-    async ({ query }) => jsonContent(await provider().findEndpoint(query)),
+    async ({ query }) => {
+      const data = await provider().findEndpoint(query);
+      return structuredContent(
+        data,
+        `Found ${data.endpoints.length} endpoint(s) matching '${query}'`,
+      );
+    },
   );
 
   server.registerTool(
     "get_endpoint",
     {
       title: "Get endpoint",
-      description: "Return focused request/response/security context for one endpoint.",
+      description:
+        "Return fully resolved endpoint detail including parameters, request body schema, response schemas, and auto-generated examples. All $ref are resolved.",
       inputSchema: {
         method: z.string().describe("HTTP method, for example POST."),
         path: z.string().describe("OpenAPI path, for example /shipments."),
-        dereference: z
-          .boolean()
-          .optional()
-          .describe("Resolve $ref values before returning the endpoint."),
       },
     },
-    async ({ method, path, dereference }) =>
-      jsonContent(await provider().getEndpoint(method, path, dereference ?? false)),
+    async ({ method, path }) => {
+      const data = await provider().getEndpoint(method, path);
+      return structuredContent(data, describeEndpoint(data));
+    },
   );
 
   server.registerTool(
     "get_schema",
     {
       title: "Get schema",
-      description: "Return a component schema by name.",
+      description: "Return a component schema by name with all $ref resolved.",
       inputSchema: {
         name: z.string().describe("Schema name in components.schemas."),
       },
     },
-    async ({ name }) => jsonContent(await provider().getSchema(name)),
-  );
-
-  server.registerTool(
-    "resolve_schema",
-    {
-      title: "Resolve schema",
-      description: "Return a component schema with $ref values resolved.",
-      inputSchema: {
-        name: z.string().describe("Schema name in components.schemas."),
-      },
+    async ({ name }) => {
+      const data = await provider().getSchema(name);
+      return structuredContent({ name, schema: data }, describeSchema(name, data));
     },
-    async ({ name }) => jsonContent(await provider().getSchema(name, true)),
   );
 
   server.registerTool(
@@ -105,33 +98,13 @@ export function registerOpenApiTools(
         query: z.string().describe("Search text, for example: vehicle."),
       },
     },
-    async ({ query }) => jsonContent(await provider().searchSchema(query)),
-  );
-
-  server.registerTool(
-    "explain_endpoint",
-    {
-      title: "Explain endpoint",
-      description: "Generate auth/request/response/errors/example documentation for one endpoint.",
-      inputSchema: {
-        method: z.string().describe("HTTP method."),
-        path: z.string().describe("OpenAPI path."),
-      },
+    async ({ query }) => {
+      const data = await provider().searchSchema(query);
+      return structuredContent(
+        { results: data },
+        `Found ${data.length} schema(s) matching '${query}'`,
+      );
     },
-    async ({ method, path }) => jsonContent(await provider().explainEndpoint(method, path)),
-  );
-
-  server.registerTool(
-    "generate_example",
-    {
-      title: "Generate example",
-      description: "Generate an example JSON request body for one endpoint.",
-      inputSchema: {
-        method: z.string().describe("HTTP method."),
-        path: z.string().describe("OpenAPI path."),
-      },
-    },
-    async ({ method, path }) => jsonContent(await provider().generateExample(method, path)),
   );
 
   server.registerTool(
@@ -145,8 +118,13 @@ export function registerOpenApiTools(
         data: z.unknown().describe("JSON request body to validate."),
       },
     },
-    async ({ method, path, data }) =>
-      jsonContent(await provider().validateRequest(method, path, data)),
+    async ({ method, path, data }) => {
+      const result = await provider().validateRequest(method, path, data);
+      const valid = result.valid === true;
+      const errorCount = Array.isArray(result.errors) ? result.errors.length : 0;
+      const text = valid ? "Valid" : `Invalid: ${errorCount} error(s)`;
+      return structuredContent(result, text);
+    },
   );
 
   server.registerTool(
@@ -156,16 +134,16 @@ export function registerOpenApiTools(
       description: "Return global security requirements and security schemes.",
       inputSchema: emptyInput,
     },
-    async () => jsonContent(await provider().getAuth()),
+    async () => {
+      const data = await provider().getAuth();
+      return structuredContent(data, describeAuth(data));
+    },
   );
 }
 
-function jsonContent(value: unknown) {
-  return textContent(JSON.stringify(value, null, 2));
-}
-
-function textContent(text: string) {
+function structuredContent(value: Record<string, unknown>, text: string) {
   return {
+    structuredContent: value,
     content: [
       {
         type: "text" as const,
@@ -175,23 +153,78 @@ function textContent(text: string) {
   };
 }
 
-function formatEndpointList(endpoints: Awaited<ReturnType<OpenApiProvider["listEndpoints"]>>) {
-  const groups = new Map<string, string[]>();
+function describeSummary(data: Record<string, unknown>): string {
+  const title = data.title ?? "OpenAPI";
+  const version = data.version ? ` v${data.version}` : "";
+  return `${title}${version} — ${data.pathCount} paths, ${data.operationCount} operations, ${data.schemaCount} schemas`;
+}
 
-  for (const endpoint of endpoints) {
-    const tag =
-      Array.isArray(endpoint.tags) && typeof endpoint.tags[0] === "string"
-        ? endpoint.tags[0]
-        : "Untagged";
-    const summary =
-      typeof endpoint.summary === "string" && endpoint.summary ? ` — ${endpoint.summary}` : "";
-    const operationId =
-      typeof endpoint.operationId === "string" ? ` (${endpoint.operationId})` : "";
-    const line = `${endpoint.method.padEnd(6)} ${endpoint.path}${operationId}${summary}`;
-    groups.set(tag, [...(groups.get(tag) ?? []), line]);
+function describeEndpoint(data: Record<string, unknown>): string {
+  const header = `${data.method} ${data.path}`;
+  const parts: string[] = [header];
+
+  if (typeof data.summary === "string" && data.summary) {
+    parts.push(`— ${data.summary}`);
   }
 
-  return Array.from(groups.entries())
-    .map(([tag, lines]) => [`# ${tag}`, ...lines].join("\n"))
-    .join("\n\n");
+  const security = data.security;
+  if (Array.isArray(security) && security.length > 0) {
+    const schemes = security.filter(isRecord).flatMap((s) => Object.keys(s));
+    if (schemes.length > 0) {
+      parts.push(`Auth: ${schemes.join(", ")}`);
+    }
+  }
+
+  const body = data.requestBody;
+  if (
+    isRecord(body) &&
+    isRecord(body.schema) &&
+    isRecord((body.schema as Record<string, unknown>).properties)
+  ) {
+    const fieldCount = Object.keys(
+      (body.schema as Record<string, unknown>).properties as Record<string, unknown>,
+    ).length;
+    parts.push(`Body: ${fieldCount} field(s)`);
+  }
+
+  const responses = data.responses;
+  if (isRecord(responses)) {
+    parts.push(`Responses: ${Object.keys(responses).join(", ")}`);
+  }
+
+  return parts.join(". ");
+}
+
+function describeSchema(name: string, schema: unknown): string {
+  if (!isRecord(schema)) {
+    return name;
+  }
+
+  const type = typeof schema.type === "string" ? schema.type : "object";
+
+  if (isRecord(schema.properties)) {
+    return `${name} — ${type} with ${Object.keys(schema.properties).length} properties`;
+  }
+
+  if (Array.isArray(schema.enum)) {
+    return `${name} — enum [${schema.enum.slice(0, 5).join(", ")}${schema.enum.length > 5 ? ", ..." : ""}]`;
+  }
+
+  return `${name} — ${type}`;
+}
+
+function describeAuth(data: Record<string, unknown>): string {
+  const schemes = data.securitySchemes;
+  if (!isRecord(schemes) || Object.keys(schemes).length === 0) {
+    return "No security schemes defined";
+  }
+
+  const parts = Object.entries(schemes).map(([name, scheme]) => {
+    if (isRecord(scheme) && typeof scheme.type === "string") {
+      return `${name} (${scheme.type})`;
+    }
+    return name;
+  });
+
+  return `Auth: ${parts.join(", ")}`;
 }

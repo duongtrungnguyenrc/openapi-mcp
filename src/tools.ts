@@ -141,16 +141,19 @@ export function registerOpenApiTools(
   );
 }
 
-function structuredContent(value: Record<string, unknown>, text: string) {
+function structuredContent(value: unknown, text: string) {
   return {
-    structuredContent: value,
     content: [
       {
         type: "text" as const,
-        text,
+        text: toMarkdownContent(value, text),
       },
     ],
   };
+}
+
+function toMarkdownContent(value: unknown, summary: string): string {
+  return [`## ${summary}`, "", "```json", JSON.stringify(value, null, 2), "```"].join("\n");
 }
 
 function describeSummary(data: Record<string, unknown>): string {

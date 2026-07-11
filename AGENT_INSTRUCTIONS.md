@@ -1,198 +1,33 @@
-# Agent Instructions: OpenAPI MCP
+## OpenAPI MCP
 
-Use this MCP server as the source of truth for one configured OpenAPI/Swagger spec. Do not paste or load a large OpenAPI file into model context when this MCP is available. Ask the MCP tools for the smallest endpoint, schema, auth, or example context needed for the integration task.
+This project has an OpenAPI MCP server (`openapi_*` tools) configured. Use it as the source of truth for the configured OpenAPI/Swagger spec. Do not paste or load a large OpenAPI file into model context when this MCP is available; ask the MCP tools for the smallest endpoint, schema, auth, or example context needed for the integration task.
 
-## What this MCP helps agents do
+### When to prefer OpenAPI MCP over reading the spec directly
 
-This server turns an OpenAPI document into focused, tool-callable API context for coding agents. It is most useful when an agent must write, review, or debug code that calls an HTTP API.
+Use OpenAPI MCP for **API integration** questions — which endpoint to call, what method/path/parameters/body/auth are required, which responses and errors exist, or whether a drafted request body is valid. Use source-code tools for project code questions, and only read the raw spec directly for literal text that the MCP tools cannot expose.
 
-Use it to answer integration questions such as:
+| Question                                                 | Tool                |
+| -------------------------------------------------------- | ------------------- |
+| "What API is configured?" / "What servers exist?"        | `summarize_openapi` |
+| "What endpoints are available?"                          | `list_endpoints`    |
+| "Which endpoint matches this user goal?"                 | `find_endpoint`     |
+| "What does METHOD /path require and return?"             | `get_endpoint`      |
+| "What schema/model defines this object?"                 | `get_schema`        |
+| "Which schema matches this name or meaning?"             | `search_schema`     |
+| "Is this generated request JSON valid for the endpoint?" | `validate_request`  |
+| "How should client code authenticate?"                   | `get_auth`          |
 
-- Which endpoint matches the user's goal?
-- What HTTP method, path, parameters, body, and headers are required?
-- Which auth scheme should client code use?
-- What request JSON shape is valid?
-- Which response status and fields should the code handle?
-- What error responses need explicit handling?
-- Is a generated request body valid before writing code?
+### Rules of thumb
 
-## Why use this MCP instead of reading the spec directly
+- **Start from user intent, not guessed paths.** If the user describes a business action, call `find_endpoint` first. If no good result appears, use `list_endpoints`; do not infer paths from UI labels, database names, or naming conventions.
+- **Read endpoint details before coding.** Once method and path are known, call `get_endpoint` and check servers/base URL, parameters, request content type, required request fields, generated example, auth/security, success responses, and documented errors.
+- **Check authentication explicitly.** Use `get_auth` before adding client authentication. Prefer endpoint-level security from `get_endpoint` when it differs from global security. Never invent header names such as `X-API-Key` unless the spec says so.
+- **Validate request bodies.** Use the `example` returned by `get_endpoint` as a schema-based draft, adapt it to real inputs, then call `validate_request` with the exact JSON body before finalizing client code.
+- **Keep integration code minimal.** Include only the documented method, URL construction, parameters, body/content type, auth, response parsing, and error handling needed for the endpoint.
+- **Do not hardcode MCP examples.** Convert example values into function parameters, DTO fields, fixtures, or tests unless the user explicitly asks for sample code.
+- **Re-check when requirements change.** If fields, endpoint, auth, or response handling change, call the relevant MCP tool again instead of relying on stale endpoint details.
+- **Keep final answers focused.** Return only API details relevant to the user's task; avoid dumping full specs or large schemas.
 
-- Keeps model context small by returning focused API documentation.
-- Parses and validates JSON/YAML OpenAPI and Swagger specs with `@apidevtools/swagger-parser`.
-- Supports local spec paths and HTTP(S) spec URLs.
-- Resolves `$ref` only when needed, avoiding manual schema chasing.
-- Supports endpoint/schema lookup instead of brittle text search.
-- Generates realistic request examples from schemas.
-- Validates drafted JSON bodies before client code is finalized.
+### If no OpenAPI spec is configured
 
-## When to use it
-
-Use this MCP whenever a task involves the configured OpenAPI/Swagger specification, especially when you need to:
-
-- discover which API endpoint matches a user goal;
-- inspect request parameters, request body, responses, security, or servers;
-- look up component schemas by name;
-- resolve schema references;
-- generate a realistic request payload example;
-- validate a JSON request body generated by the agent;
-- understand auth requirements before writing API client code;
-- work with large specs where reading the full file would waste context.
-
-Do not use it for unrelated source-code questions. Use normal code intelligence tools for project code.
-
-### Tool guide
-
-| Tool                | Use when                                                                                                                    |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `summarize_openapi` | You need high-level API metadata, servers, and endpoint/schema counts.                                                      |
-| `list_endpoints`    | You need a full endpoint inventory.                                                                                         |
-| `find_endpoint`     | You have a natural-language goal and need matching endpoints.                                                               |
-| `get_endpoint`      | You know method/path and need exact request/response/security details (with all $ref resolved and examples auto-generated). |
-| `get_schema`        | You know a component schema name and need its definition (with all $ref resolved).                                          |
-| `search_schema`     | You need to find schemas by meaning, name, or content.                                                                      |
-| `validate_request`  | You need to verify generated JSON against the endpoint request schema.                                                      |
-| `get_auth`          | You need global security requirements and schemes.                                                                          |
-
-## Recommended workflow for API integration
-
-### 1. Identify the endpoint
-
-If the user describes a business action, start with `find_endpoint`.
-
-Example:
-
-```json
-{
-  "query": "create shipment"
-}
-```
-
-If no good result appears, use `list_endpoints` to inspect the API surface. Do not guess the path from naming conventions.
-
-### 2. Read endpoint details
-
-Once method and path are known, call `get_endpoint`.
-
-```json
-{
-  "method": "POST",
-  "path": "/shipments"
-}
-```
-
-Check these fields in the returned detail:
-
-- servers/base URL;
-- path/query/header parameters;
-- request content type;
-- required request fields (fully resolved schema);
-- auto-generated request body example;
-- auth/security requirements;
-- success response status, resolved schema, and examples;
-- documented error responses.
-
-### 3. Check authentication before coding
-
-Use `get_auth` before adding API client authentication. Prefer the endpoint security from `get_endpoint` when it differs from global security.
-
-Map auth schemes carefully:
-
-- HTTP bearer -> `Authorization: Bearer <token>`;
-- API key in header -> documented header name;
-- API key in query -> documented query parameter name;
-- cookie auth -> documented cookie name;
-- OAuth2 -> required scopes from the security requirement.
-
-Never invent header names such as `X-API-Key` unless the spec says so.
-
-### 4. Use request body example and validate
-
-Use the `example` returned inside `requestBody` in `get_endpoint` to get a schema-based draft body. Then adapt values to the user's domain.
-
-Before finalizing code, call `validate_request` with the exact JSON body your code will send.
-
-```json
-{
-  "method": "POST",
-  "path": "/shipments",
-  "data": {
-    "vehicleId": "veh_123"
-  }
-}
-```
-
-If validation fails, fix the JSON first. Do not write client code around an invalid payload.
-
-### 5. Write integration code
-
-When coding, include only what the endpoint requires:
-
-- method and URL construction;
-- path/query/header parameters;
-- request body and content type;
-- auth handling;
-- timeout/cancellation if the host project uses it;
-- response parsing for documented success statuses;
-- error handling for documented error statuses.
-
-Do not hardcode example values from the MCP output unless the user asked for a sample. Convert them into function parameters, DTO fields, fixtures, or tests as appropriate.
-
-### 6. Re-check when requirements change
-
-If the user changes fields, endpoint, auth, or response handling, call the relevant MCP tool again. Do not rely on stale endpoint details from earlier in the conversation.
-
-## Quick decision tree
-
-- User says what they want to do, but not endpoint -> `find_endpoint`.
-- User gives method and path -> `get_endpoint`.
-- User asks how to authenticate -> `get_auth`, then `get_endpoint` for endpoint overrides.
-- User asks for request JSON -> `get_endpoint` (which contains example), then `validate_request`.
-- User asks about a schema/model -> `search_schema`, then `get_schema`.
-- User asks for possible errors -> `get_endpoint` responses.
-- User asks for all available APIs -> `list_endpoints`.
-- User asks about project source code -> do not use this MCP; use code intelligence tools.
-
-## Resources
-
-Use resources for direct metadata reads from the configured spec:
-
-- `openapi://info` — API info, OpenAPI version, servers.
-- `openapi://components` — full components object.
-- `openapi://servers` — servers list.
-
-Prefer tools over resources when the task is endpoint- or schema-specific.
-
-## Best practices
-
-- Start with `find_endpoint` for goal-based tasks.
-- Start with `get_endpoint` when method and path are already known.
-- Use `validate_request` after generating or modifying a request body.
-- Use `get_auth` before writing client authentication code.
-- Prefer documented response statuses over assuming all success is `200`.
-- Preserve documented content types; do not assume JSON if the spec says multipart or form data.
-- Avoid copying entire OpenAPI files into prompts or final answers.
-- Return only the API details relevant to the user's task.
-
-## Anti-patterns to avoid
-
-- Guessing endpoint paths from UI labels or database names.
-- Inventing request fields not present in the schema.
-- Ignoring required path/query/header parameters.
-- Treating optional fields as required in generated code.
-- Ignoring endpoint-level security overrides.
-- Assuming bearer auth for every API.
-- Skipping request validation after changing generated JSON.
-- Dumping full schemas into final answers when a short integration summary is enough.
-
-## Example final agent flow
-
-User asks: "Write code to create a shipment."
-
-1. `find_endpoint(query: "create shipment")`
-2. `get_endpoint(method: "POST", path: "/shipments")` (to get resolved details and request/response examples)
-3. `get_auth()` if auth details are not clear from the endpoint.
-4. Draft request JSON using real inputs from the host project.
-5. `validate_request` with the drafted JSON body.
-6. Write client code using server URL, auth, request body, response, and documented errors.
-7. Finalize with concise notes about endpoint, auth, payload, and handled responses.
+The MCP server may return that no spec/config is available. Ask the user for the OpenAPI/Swagger spec path or URL, or for the command/configuration they want used to start the OpenAPI MCP server.

@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "MCP server for serving focused OpenAPI documentation context to agents.",
   "type": "module",
-  "private": true,
   "bin": {
     "openapi-mcp": "./dist/index.js",
     "openapi-mcp-cli": "./dist/cli.js"

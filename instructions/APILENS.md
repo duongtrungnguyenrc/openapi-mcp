@@ -1,10 +1,10 @@
-## OpenAPI MCP
+## ApiLens
 
-This project has an OpenAPI MCP server (`openapi_*` tools) configured. Use it as the source of truth for the configured OpenAPI/Swagger spec. Do not paste or load a large OpenAPI file into model context when this MCP is available; ask the MCP tools for the smallest endpoint, schema, auth, or example context needed for the integration task.
+This project has an ApiLens MCP server (`openapi_*` tools) configured. Use it as the source of truth for the configured OpenAPI/Swagger spec. Do not paste or load a large OpenAPI file into model context when this MCP is available; ask the MCP tools for the smallest endpoint, schema, auth, or example context needed for the integration task.
 
-### When to prefer OpenAPI MCP over reading the spec directly
+### When to prefer ApiLens over reading the spec directly
 
-Use OpenAPI MCP for **API integration** questions — which endpoint to call, what method/path/parameters/body/auth are required, which responses and errors exist, or whether a drafted request body is valid. Use source-code tools for project code questions, and only read the raw spec directly for literal text that the MCP tools cannot expose.
+Use ApiLens for **API integration** questions — which endpoint to call, what method/path/parameters/body/auth are required, which responses and errors exist, or whether a drafted request body is valid. Use source-code tools for project code questions, and only read the raw spec directly for literal text that the MCP tools cannot expose.
 
 | Question                                                 | Tool                |
 | -------------------------------------------------------- | ------------------- |
@@ -30,4 +30,4 @@ Use OpenAPI MCP for **API integration** questions — which endpoint to call, wh
 
 ### If no OpenAPI spec is configured
 
-The MCP server may return that no spec/config is available. Ask the user for the OpenAPI/Swagger spec path or URL, or for the command/configuration they want used to start the OpenAPI MCP server.
+The MCP server may return that no spec/config is available. Ask the user for the OpenAPI/Swagger spec path or URL, or for the command/configuration they want used to start the ApiLens MCP server.

@@ -1,8 +1,8 @@
-# OpenAPI Docs MCP
+# ApiLens
 
-Node.js MCP server for serving focused OpenAPI JSON/YAML documentation context to agents.
+Unified Node.js CLI and MCP server for serving focused OpenAPI JSON/YAML documentation context to agents.
 
-This server acts as an API documentation server for agents. Instead of loading a full OpenAPI file into context, agents call focused MCP tools such as `find_endpoint`, `get_endpoint`, `resolve_schema`, and `validate_request`.
+ApiLens acts as an API documentation server for agents. Instead of loading a full OpenAPI file into context, agents call focused MCP tools such as `find_endpoint`, `get_endpoint`, `resolve_schema`, and `validate_request`.
 
 Specs are parsed and validated with `@apidevtools/swagger-parser`, so both JSON and YAML OpenAPI/Swagger files are supported.
 
@@ -18,10 +18,9 @@ npm install
 npm run build
 ```
 
-The build outputs executable files to `dist/`:
+The build outputs the unified executable to `dist/`:
 
-- `dist/index.js` — MCP stdio server
-- `dist/cli.js` — setup helper CLI
+- `dist/cli.js` — ApiLens CLI and MCP stdio server entrypoint
 
 ## Configure MCP
 
@@ -30,31 +29,43 @@ The build outputs executable files to `dist/`:
 Print a config snippet:
 
 ```bash
-./dist/cli.js print-config
+apilens print-config
 ```
 
-Merge this server into an agent MCP config JSON file:
+Configure ApiLens for multiple agentic providers (Antigravity IDE, Claude Desktop, Codex, Cline, Roo Cline). The CLI automatically detects existing installations and ticks them by default. Each provider uses its native config format; for example, Codex writes `~/.codex/config.toml`, while Claude/Cline-style clients write JSON `mcpServers` configs:
 
 ```bash
-./dist/cli.js setup --config /path/to/agent/mcp-config.json
+# Run interactive multi-select setup
+apilens setup --spec https://example.com/openapi.yaml
+
+# Skip prompting and configure all detected providers automatically
+apilens setup --yes --spec https://example.com/openapi.yaml
+
+# Configure specific providers directly
+apilens setup --provider claude --provider codex --spec https://example.com/openapi.yaml
 ```
 
-If installed as a package binary, use:
+Supported providers: `antigravity`, `claude`, `codex`, `cline_vscode`, `roo_cline_vscode`, `cline_cursor`, `roo_cline_cursor`.
+
+To merge into a custom config file path:
 
 ```bash
-openapi-mcp-cli setup --config /path/to/agent/mcp-config.json --spec https://example.com/openapi.yaml
+apilens setup --config /path/to/agent/mcp-config.json
 ```
 
 ### Option 2: Configure manually
 
-Add this server to your MCP client config:
+Add ApiLens to your MCP client config:
 
 ```json
 {
   "mcpServers": {
-    "openapi-docs": {
-      "command": "openapi-mcp",
-      "args": ["--spec", "https://example.com/openapi.yaml"]
+    "apilens": {
+      "command": "apilens",
+      "args": ["--mcp", "--spec", "https://example.com/openapi.yaml"],
+      "env": {
+        "NODE_OPTIONS": "--use-system-ca"
+      }
     }
   }
 }
@@ -67,9 +78,12 @@ Example for this workspace:
 ```json
 {
   "mcpServers": {
-    "openapi-docs": {
-      "command": "openapi-mcp",
-      "args": ["--spec", "/home/nguyenduong/Documents/openapi.yaml"]
+    "apilens": {
+      "command": "apilens",
+      "args": ["--mcp", "--spec", "/home/nguyenduong/Documents/openapi.yaml"],
+      "env": {
+        "NODE_OPTIONS": "--use-system-ca"
+      }
     }
   }
 }
@@ -81,10 +95,10 @@ When configured with `--spec`, tools use that OpenAPI document for every call.
 
 Spec source resolution order:
 
-1. `--spec <path-or-url>` in MCP server args.
+1. `--spec <path-or-url>` in `apilens --mcp` args.
 2. `OPENAPI_SPEC` environment variable.
 
-Tool calls do not accept a spec path override. Start a separate MCP server instance for a different OpenAPI document.
+Tool calls do not accept a spec path override. Start a separate ApiLens MCP server instance for a different OpenAPI document.
 
 ### Typical workflow
 
